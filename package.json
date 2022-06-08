@@ -1,0 +1,29 @@
+{
+  "name": "crowdhandler-akamai-integration",
+  "version": "1.0.0",
+  "description": "",
+  "main": "main.js",
+  "scripts": {
+    "build": "rollup -c && cd dist/work && tar -czvf ../crowdhandler-akamai.tgz *",
+    "build-dev": "rollup -c && cd dist/work && tar -czvf ../crowdhandler-akamai.tgz * && akamai sandbox update-edgeworker 7825 ../crowdhandler-akamai.tgz",
+    "sandbox-create": "akamai sandbox create --hostname www.example.com --name sandbox_for_www_example_com",
+    "sandbox-debug": "akamai edgeworkers auth --expiry 720 www.example.com",
+    "sandbox-list": "akamai sandbox list",
+    "sandbox-start": "akamai sandbox start",
+    "sandbox-update": "akamai sandbox update-edgeworker"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "^21.0.1",
+    "@rollup/plugin-node-resolve": "^13.0.6",
+    "rollup": "^2.59.0",
+    "rollup-plugin-copy-assets": "^2.0.3",
+    "rollup-plugin-json": "^4.0.0"
+  },
+  "dependencies": {
+    "geokdbush": "^1.1.0",
+    "js-sha256": "^0.9.0",
+    "util": "^0.12.4"
+  }
+}
