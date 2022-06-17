@@ -3,6 +3,7 @@ import { Cookies, SetCookie } from "cookies";
 
 import {
   generateSignature,
+  noCacheHeaders,
   processQueryString,
   queryStringParse,
   sourceTokenandSignature,
@@ -61,14 +62,27 @@ export async function onClientRequest(request) {
       code = "";
     }
 
-    let headers = {
-      "Cache-Control": "no-cache, no-store, must-revalidate",
-      Expires: "Fri, 01 Jan 1970 00:00:00 GMT",
-      Pragma: "no-cache",
-      Location: `${API_ENDPOINT}/redirect/requests/${token}?url=${targetURL}&ch-public-key=${PUBLIC_API_KEY}&ch-code=${code}&whitelabel=true`,
+    let redirectLocation = {
+      Location: `https://${API_ENDPOINT}/v1/redirect/requests/${token}?url=${targetURL}&ch-public-key=${PUBLIC_API_KEY}&ch-code=${code}&whitelabel=true`,
     };
+    let headers = Object.assign(noCacheHeaders, redirectLocation);
 
     //Add a no-cache header here
+    request.respondWith(302, headers, "{}");
+  }
+
+  //Strip the URL of special CrowdHandler parameters
+  function generateCleanURL(queryString) {
+    let redirectLocation;
+
+    if (queryString) {
+      redirectLocation = { Location: `${path}${queryString}` };
+    } else {
+      redirectLocation = { Location: path };
+    }
+
+    let headers = Object.assign(noCacheHeaders, redirectLocation);
+
     request.respondWith(302, headers, "{}");
   }
 
@@ -143,7 +157,8 @@ export async function onClientRequest(request) {
         signature,
         validationRequired.slug,
         crowdhandlerCookieValue,
-        validationRequired.timeout
+        validationRequired.timeout,
+        validationRequired.patternType
       );
 
       if (validationResult.success !== true) {
@@ -156,6 +171,10 @@ export async function onClientRequest(request) {
       } else {
         //If the signature is valid, we can continue to the next stage of the request
         let freshToken;
+        //Flag if we're working with a never seen before signature
+        let newSignature;
+        //This is for recording the slug that triggered shadow promotion
+        let shadowPromotionSlug;
         let signatures = [];
         let tokenObjects = [];
 
@@ -181,19 +200,21 @@ export async function onClientRequest(request) {
           }
         }
 
-        //Push catch-all shadow promotion signature to the signatures array if a shadow promotion needs to occur.
+        //Track the slug that triggered a catch-all shadow promotion.
+        //We're going to use this slug to spoof the hash when hitting a catch-all room.
         if (
+          freshToken !== true &&
+          tokenObjects[tokenObjects.length - 1].shadowPromotionSlug
+        ) {
+          shadowPromotionSlug =
+            tokenObjects[tokenObjects.length - 1].shadowPromotionSlug;
+        } else if (
           validationRequired.shadowslug &&
           validationRequired.slug !== validationRequired.shadowslug
         ) {
-          let shadowPromotionSignature;
-          shadowPromotionSignature = generateSignature(
-            `${HASHED_PRIVATE_API_KEY}${validationRequired.shadowslug}${token}`
-          );
-
-          if (signatures.includes(shadowPromotionSignature) === false) {
-            signatures.push(shadowPromotionSignature);
-          }
+          shadowPromotionSlug = validationRequired.slug;
+        } else {
+          shadowPromotionSlug = null;
         }
 
         //Add any newly validated signatures to the signatures array
@@ -202,6 +223,7 @@ export async function onClientRequest(request) {
           signatures.includes(signature) === false
         ) {
           signatures.push(signature);
+          newSignature = true;
         }
 
         if (freshToken) {
@@ -210,7 +232,8 @@ export async function onClientRequest(request) {
             requestStartTime,
             generateSignature(`${HASHED_PRIVATE_API_KEY}${requestStartTime}`),
             signatures,
-            token
+            token,
+            shadowPromotionSlug
           );
 
           //Reset the array. It's important we don't allow the PMUSER_CREDENTIALS variable exceed the byte limit.
@@ -223,6 +246,8 @@ export async function onClientRequest(request) {
             generateSignature(`${HASHED_PRIVATE_API_KEY}${requestStartTime}`);
           tokenObjects[tokenObjects.length - 1].datestamp.touched =
             requestStartTime;
+          tokenObjects[tokenObjects.length - 1].shadowPromotionSlug =
+            shadowPromotionSlug;
         }
 
         //Set the cookie in our middle man variable that we can access in onClientResponse
@@ -233,6 +258,11 @@ export async function onClientRequest(request) {
             tokens: tokenObjects,
           })
         );
+
+        //If we're coming in from the lite validator clean up the URL
+        if (newSignature) {
+          generateCleanURL(queryString);
+        }
       }
     } else {
       goToLiteValidator(targetURL, token, chCode, true);

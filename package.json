@@ -19,10 +19,10 @@
     "@rollup/plugin-node-resolve": "^13.0.6",
     "rollup": "^2.59.0",
     "rollup-plugin-copy-assets": "^2.0.3",
-    "rollup-plugin-json": "^4.0.0"
+    "rollup-plugin-json": "^4.0.0",
+    "rollup-plugin-terser": "^7.0.2"
   },
   "dependencies": {
-    "geokdbush": "^1.1.0",
     "js-sha256": "^0.9.0",
     "util": "^0.12.4"
   }

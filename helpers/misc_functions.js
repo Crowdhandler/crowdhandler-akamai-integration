@@ -31,6 +31,12 @@ const creativeAssetExtensions = [
   "xml",
 ];
 
+const noCacheHeaders = {
+  "Cache-Control": "no-cache, no-store, must-revalidate",
+  Expires: "Fri, 01 Jan 1970 00:00:00 GMT",
+  Pragma: "no-cache",
+};
+
 const processQueryString = function (unprocessedQueryString) {
   let queryString = unprocessedQueryString;
 
@@ -127,6 +133,7 @@ export {
   creativeAssetExtensions,
   extractTokenDatestamp,
   generateSignature,
+  noCacheHeaders,
   processQueryString,
   queryStringParse,
   sourceTokenandSignature,

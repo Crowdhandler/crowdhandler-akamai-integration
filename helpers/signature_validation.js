@@ -6,7 +6,8 @@ const signatureValidate = function (
   signature,
   slug,
   crowdhandlerCookieValue,
-  timeout
+  timeout,
+  patternType
 ) {
   let validationResponse = {
     expiration: null,
@@ -66,8 +67,32 @@ const signatureValidate = function (
   }
 
   //Hash validation
+  let requiredHash;
+  let shadowPromotionSlug;
+
+  //If we're hitting pattern type "all" and there is a known shadowPromotionSlug slug associated with the token. We can use this hash to validate the hit.
+  //Otherwise use the current slug.
+  if (
+    crowdhandlerCookieValue &&
+    crowdhandlerCookieValue.tokens[crowdhandlerCookieValue.tokens.length - 1]
+      .shadowPromotionSlug && crowdhandlerCookieValue.tokens[crowdhandlerCookieValue.tokens.length - 1]
+      .token === token
+  ) {
+    shadowPromotionSlug =
+      crowdhandlerCookieValue.tokens[crowdhandlerCookieValue.tokens.length - 1]
+        .shadowPromotionSlug;
+  }
+
+  if (patternType === "all" && shadowPromotionSlug) {
+    requiredHash = generateSignature(
+      `${api_key}${shadowPromotionSlug}${token}`
+    );
+  } else {
+    requiredHash = generateSignature(`${api_key}${slug}${token}`);
+  }
+
   for (const hash of signature) {
-    if (generateSignature(`${api_key}${slug}${token}`) === hash) {
+    if (requiredHash === hash) {
       validationResponse.expiration = false;
       validationResponse.success = true;
       return validationResponse;
