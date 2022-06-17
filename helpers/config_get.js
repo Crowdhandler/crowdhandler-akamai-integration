@@ -3,7 +3,7 @@ import { httpRequest } from "http-request";
 const getConfig = async function (api_key, configType) {
   function getStaticConfig() {
     //UNCOMMENT THIS LINE AND PASTE YOUR CONFIG OBJECT HERE IF YOU ARE INTEGRATING USING A STATIC CONFIG FILE
-    //const config = {}
+    //const config = {};
     return config;
   }
 

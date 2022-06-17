@@ -2,6 +2,7 @@ import resolve from '@rollup/plugin-node-resolve';
 import commonjs from '@rollup/plugin-commonjs';
 import copy from 'rollup-plugin-copy-assets';
 import json from 'rollup-plugin-json';
+import { terser } from "rollup-plugin-terser";
 
 export default {
   // Specify main file for EdgeWorker
@@ -17,6 +18,8 @@ export default {
   preserveModules: false,
 
   plugins: [
+    //Minify
+    terser(),
     // Convert CommonJS modules to ES6
     commonjs(),
     // Resolve modules from node_modules
