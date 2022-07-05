@@ -34,6 +34,7 @@ export async function onClientRequest(request) {
   const path = request.path;
 
   //Environment Setup
+  //REMOVE B4 BUNDLING
   const API_ENDPOINT = request.getVariable("PMUSER_CROWDHANDLER_API_ENDPOINT");
   let PRIVATE_API_KEY;
   let PUBLIC_API_KEY;
@@ -54,7 +55,7 @@ export async function onClientRequest(request) {
 
   //Our function to return a response sending requests needing validation to the lite validator
   function goToLiteValidator(targetURL, token, code, expiration) {
-    if (!token || expiration === true) {
+    if (!token) {
       token = "";
     }
 
@@ -63,7 +64,7 @@ export async function onClientRequest(request) {
     }
 
     let redirectLocation = {
-      Location: `https://${API_ENDPOINT}/v1/redirect/requests/${token}?url=${targetURL}&ch-public-key=${PUBLIC_API_KEY}&ch-code=${code}&whitelabel=true`,
+      Location: `/ch-api/v1/redirect/requests/${token}?url=${targetURL}&ch-public-key=${PUBLIC_API_KEY}&ch-code=${code}&whitelabel=true`,
     };
     let headers = Object.assign(noCacheHeaders, redirectLocation);
 
@@ -116,6 +117,7 @@ export async function onClientRequest(request) {
       "ch-id": chID,
       "ch-id-signature": chIDSignature,
       "ch-public-key": chPublicKey,
+      "ch-requested": chRequested,
     } = queryString || {};
 
     //Override chCode value if the current one is unusable
@@ -152,9 +154,11 @@ export async function onClientRequest(request) {
     //Move to next stage of validation
     if (token && signature) {
       let validationResult = signatureValidate(
+        chRequested,
         HASHED_PRIVATE_API_KEY,
         token,
         signature,
+        validationRequired.queueActivatesOn,
         validationRequired.slug,
         crowdhandlerCookieValue,
         validationRequired.timeout,
@@ -173,10 +177,11 @@ export async function onClientRequest(request) {
         let freshToken;
         //Flag if we're working with a never seen before signature
         let newSignature;
-        //This is for recording the slug that triggered shadow promotion
-        let shadowPromotionSlug;
         let signatures = [];
         let tokenObjects = [];
+        let requestStartTimeHash = generateSignature(
+          `${HASHED_PRIVATE_API_KEY}${requestStartTime}`
+        );
 
         //Push tokens already in the cookie
         if (crowdhandlerCookieValue) {
@@ -200,54 +205,33 @@ export async function onClientRequest(request) {
           }
         }
 
-        //Track the slug that triggered a catch-all shadow promotion.
-        //We're going to use this slug to spoof the hash when hitting a catch-all room.
-        if (
-          freshToken !== true &&
-          tokenObjects[tokenObjects.length - 1].shadowPromotionSlug
-        ) {
-          shadowPromotionSlug =
-            tokenObjects[tokenObjects.length - 1].shadowPromotionSlug;
-        } else if (
-          validationRequired.shadowslug &&
-          validationRequired.slug !== validationRequired.shadowslug
-        ) {
-          shadowPromotionSlug = validationRequired.slug;
-        } else {
-          shadowPromotionSlug = null;
-        }
+        let tokenObject = new generateTokenObject(
+          requestStartTime,
+          requestStartTimeHash,
+          signature,
+          chRequested,
+          signatures,
+          token
+        );
 
-        //Add any newly validated signatures to the signatures array
         if (
           typeof signature === "string" &&
-          signatures.includes(signature) === false
+          signatures.some((item) => item.sig === signature) === false
         ) {
-          signatures.push(signature);
+          signatures.push(tokenObject.signatureObject());
           newSignature = true;
         }
 
         if (freshToken) {
-          //If we're working with a fresh token generate a new token object.
-          let tokenObject = new generateTokenObject(
-            requestStartTime,
-            generateSignature(`${HASHED_PRIVATE_API_KEY}${requestStartTime}`),
-            signatures,
-            token,
-            shadowPromotionSlug
-          );
-
           //Reset the array. It's important we don't allow the PMUSER_CREDENTIALS variable exceed the byte limit.
           tokenObjects = [];
           tokenObjects.push(tokenObject.tokenObject());
         } else {
-          //If we're working with a pre-existing token object. Update the existing one.
+          //Update the cookie
           tokenObjects[tokenObjects.length - 1].signatures = signatures;
-          tokenObjects[tokenObjects.length - 1].datestamp.signature =
-            generateSignature(`${HASHED_PRIVATE_API_KEY}${requestStartTime}`);
-          tokenObjects[tokenObjects.length - 1].datestamp.touched =
-            requestStartTime;
-          tokenObjects[tokenObjects.length - 1].shadowPromotionSlug =
-            shadowPromotionSlug;
+          tokenObjects[tokenObjects.length - 1].touched = requestStartTime;
+          tokenObjects[tokenObjects.length - 1].touchedSig =
+            requestStartTimeHash;
         }
 
         //Set the cookie in our middle man variable that we can access in onClientResponse

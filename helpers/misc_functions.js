@@ -2,33 +2,75 @@ import URLSearchParams from "url-search-params";
 import { sha256 } from "js-sha256";
 
 const creativeAssetExtensions = [
-  "avi",
-  "css",
-  "csv",
-  "eot",
-  "gif",
-  "ico",
-  "jpg",
-  "jpeg",
-  "js",
-  "json",
-  "map",
-  "mov",
-  "mp4",
-  "mpeg",
-  "mpg",
-  "ogg",
-  "ogv",
-  "ott",
-  "pdf",
-  "png",
-  "svg",
-  "ttf",
-  "webmanifest",
-  "wmv",
-  "woff",
-  "woff2",
-  "xml",
+  ".aac",
+  ".abw",
+  ".arc",
+  ".avi",
+  ".azw",
+  ".bin",
+  ".bmp",
+  ".bz",
+  ".bz2",
+  ".cgm",
+  ".csv",
+  ".css",
+  ".csv",
+  ".doc",
+  ".docx",
+  ".eot",
+  ".eps",
+  ".flac",
+  ".flv",
+  ".gif",
+  ".gz",
+  ".gzip",
+  ".ico",
+  ".ics",
+  ".jpeg",
+  ".jpg",
+  ".js",
+  ".json",
+  ".jsonld",
+  ".mid",
+  ".midi",
+  ".mjs",
+  ".mp3",
+  ".mpeg",
+  ".mp4",
+  ".mpg",
+  ".odp",
+  ".ods",
+  ".odt",
+  ".oga",
+  ".ogg",
+  ".ogv",
+  ".otf",
+  ".png",
+  ".pdf",
+  ".ppt",
+  ".pptx",
+  ".rar",
+  ".rtf",
+  ".svg",
+  ".swf",
+  ".tar",
+  ".tif",
+  ".tiff",
+  ".tsv",
+  ".ttf",
+  ".txt",
+  ".wav",
+  ".webm",
+  ".woff",
+  ".woff2",
+  ".xls",
+  ".xlsx",
+  ".xml",
+  ".xul",
+  ".zip",
+  ".3gp",
+  ".3g2",
+  ".7z",
 ];
 
 const noCacheHeaders = {
@@ -47,6 +89,7 @@ const processQueryString = function (unprocessedQueryString) {
     delete queryString["ch-id"];
     delete queryString["ch-id-signature"];
     delete queryString["ch-public-key"];
+    delete queryString["ch-requested"];
   }
 
   //Convert to usable querystring format
@@ -80,7 +123,8 @@ const queryStringParse = function (queryString) {
   return params;
 };
 
-const extractTokenDatestamp = function (token) {
+//Working extraction method. Left in code for sake of posterity. Not currently used.
+/*const extractTokenDatestamp = function (token) {
   let base60 = "0123456789ABCDEFGHIJKLMNPQRSTUVWXYZabcdefghijklmnpqrstuvwxyz";
   let tok_meta = token.slice(4, 10);
 
@@ -93,7 +137,7 @@ const extractTokenDatestamp = function (token) {
   let second = base60.indexOf(tok_meta[5]);
 
   return Date.UTC(`20${year}`, month, day, hour, minute, second);
-};
+};*/
 
 const generateSignature = function (input) {
   const hash = sha256(input);
@@ -131,7 +175,6 @@ const sourceTokenandSignature = function (
 
 export {
   creativeAssetExtensions,
-  extractTokenDatestamp,
   generateSignature,
   noCacheHeaders,
   processQueryString,
