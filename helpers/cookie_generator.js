@@ -3,25 +3,31 @@ class generateTokenObject {
     tokenDatestamp,
     tokenDatestampSignature,
     tokenSignature,
-    tokenValue,
-    shadowPromotionSlug
+    tokenSignatureGenerated,
+    tokenSignatures,
+    tokenValue
   ) {
-    this.tokenDatestamp = tokenDatestamp;
-    this.tokenDatestampSignature = tokenDatestampSignature;
-    this.tokenSignature = tokenSignature;
-    this.tokenValue = tokenValue;
-    this.shadowPromotionSlug = shadowPromotionSlug;
+    this.tokenDatestamp = tokenDatestamp || null;
+    this.tokenDatestampSignature = tokenDatestampSignature || null;
+    this.tokenSignature = tokenSignature || "";
+    this.tokenSignatureGenerated = tokenSignatureGenerated || "";
+    this.tokenSignatures = tokenSignatures || [];
+    this.tokenValue = tokenValue || "";
+  }
+
+  signatureObject() {
+    return {
+      gen: this.tokenSignatureGenerated,
+      sig: this.tokenSignature,
+    };
   }
 
   tokenObject() {
     return {
       token: this.tokenValue,
-      signatures: this.tokenSignature,
-      shadowPromotionSlug: this.shadowPromotionSlug,
-      datestamp: {
-        signature: this.tokenDatestampSignature,
-        touched: this.tokenDatestamp,
-      },
+      touched: this.tokenDatestamp,
+      touchedSig: this.tokenDatestampSignature,
+      signatures: this.tokenSignatures,
     };
   }
 }

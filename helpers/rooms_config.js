@@ -3,9 +3,9 @@ import { creativeAssetExtensions } from "./misc_functions.js";
 
 function staticAssetCheck(path) {
   //Handle static file extensions
-  let fileExtension = path.match(/\.(.*)/);
+  let fileExtension = path.match(/(.*)(\..*)/);
   if (fileExtension !== null) {
-    fileExtension = fileExtension[1];
+    fileExtension = fileExtension[2];
   }
 
   if (creativeAssetExtensions.indexOf(fileExtension) !== -1) {
@@ -50,9 +50,7 @@ const roomsConfigCheck = function (integrationConfig, host, path) {
   let roomMeta = {
     domain: null,
     patternType: null,
-    //Shadowslug populated with slugs accompanying the all pattern type. We populate this if we get a pattern match that isn't type all and if pattern type all exists.
-    //Intention is to promote session for catch-all rooms if any other pattern type promotion occurs.
-    shadowslug: null,
+    queueActivatesOn: null,
     slug: null,
     status: false,
     timeout: null,
@@ -65,13 +63,10 @@ const roomsConfigCheck = function (integrationConfig, host, path) {
       if (roomMeta.slug === null) {
         roomMeta.domain = item.domain;
         roomMeta.patternType = item.patternType;
+        roomMeta.queueActivatesOn = item.queueActivatesOn;
         roomMeta.slug = item.slug;
         roomMeta.status = true;
         roomMeta.timeout = item.timeout;
-      }
-
-      if (item.patternType === "all") {
-        roomMeta.shadowslug = item.slug;
       }
     }
   }

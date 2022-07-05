@@ -1,18 +1,80 @@
-import { extractTokenDatestamp, generateSignature } from "./misc_functions.js";
+import { generateSignature } from "./misc_functions.js";
+//import { logger } from "log";
 
 const signatureValidate = function (
+  chRequested,
   api_key,
   token,
   signature,
+  queueActivatesOn,
   slug,
   crowdhandlerCookieValue,
-  timeout,
-  patternType
+  timeout
 ) {
   let validationResponse = {
     expiration: null,
     success: null,
+    validatedSignature: null,
   };
+
+  //Convert to array if we're dealing with a string (signature pulled from ch-id-signature parameter)
+  if (typeof signature === "string") {
+    signature = signature.split();
+  }
+
+  let hashCandidates = [];
+  let activeCookie;
+  if (crowdhandlerCookieValue) {
+    activeCookie =
+      crowdhandlerCookieValue.tokens[crowdhandlerCookieValue.tokens.length - 1];
+  }
+  let matchedSignature;
+
+  if (chRequested) {
+    hashCandidates.unshift(
+      `${api_key}${slug}${queueActivatesOn}${token}${chRequested}`
+    );
+  } else {
+    //If we have a signature that is active, we can use that to generate the hash
+    let generatedHistory = [];
+
+    //Collect the historically generated timestamps
+    //Unshift to get most recent sig objects first for optimisation purposes
+    for (const item of signature) {
+      generatedHistory.unshift(item.gen);
+    }
+
+    //Generate possible hash candidates
+    for (const item of generatedHistory) {
+      hashCandidates.push(
+        `${api_key}${slug}${queueActivatesOn}${token}${item}`
+      );
+    }
+  }
+
+  //If there's no signature match it's a failure and we shouldn't proceed any further
+  if (chRequested) {
+    let requiredHash = generateSignature(hashCandidates[0]);
+
+    if (signature.some((item) => item === requiredHash) === true) {
+      matchedSignature = requiredHash;
+    }
+  } else {
+    for (const hash of hashCandidates) {
+      let requiredHash = generateSignature(hash);
+      if (signature.some((item) => item.sig === requiredHash) === true) {
+        matchedSignature = requiredHash;
+        break;
+      }
+    }
+  }
+
+  //No signature matches found. Validation failed.
+  if (!matchedSignature) {
+    validationResponse.expiration = false;
+    validationResponse.success = false;
+    return validationResponse;
+  }
 
   function minutesSinceTokenCreated(datestamp) {
     //UTC
@@ -25,81 +87,28 @@ const signatureValidate = function (
     return minutesPassed;
   }
 
-  //Validate date stamp provided in the cookie.
-  //Make sure that we don't attempt to validate the datestamp information of stale tokens.
-  if (
-    crowdhandlerCookieValue &&
-    crowdhandlerCookieValue.tokens[crowdhandlerCookieValue.tokens.length - 1]
-      .token === token
-  ) {
-    let dateMeta =
-      crowdhandlerCookieValue.tokens[crowdhandlerCookieValue.tokens.length - 1]
-        .datestamp;
-
-    if (
-      dateMeta.signature !==
-        generateSignature(`${api_key}${dateMeta.touched}`) ||
-      minutesSinceTokenCreated(dateMeta.touched) > timeout
-    ) {
-      validationResponse.expiration = true;
-      validationResponse.success = false;
+  //This will only be true if we're dealing with a request that has recently been promoted from the waiting room or lite-validator.
+  if (chRequested) {
+    if (minutesSinceTokenCreated(Date.parse(chRequested)) < timeout) {
+      validationResponse.expiration = false;
+      validationResponse.success = true;
       return validationResponse;
     }
-  }
-  //If no cookie is found we work with the token extracted from the URL parameter
-  else if (token) {
-    if (minutesSinceTokenCreated(extractTokenDatestamp(token)) > timeout) {
-      validationResponse.success = false;
-      validationResponse.expiration = true;
-      return validationResponse;
-    }
-  }
-  //No cookie or query string token found. Can't validate this request.
-  else {
-    validationResponse.expiration = false;
-    validationResponse.success = false;
-    return validationResponse;
-  }
-
-  //Convert to array if we're dealing with a string (signature pulled from ch-id-signature parameter)
-  if (typeof signature === "string") {
-    signature = signature.split();
-  }
-
-  //Hash validation
-  let requiredHash;
-  let shadowPromotionSlug;
-
-  //If we're hitting pattern type "all" and there is a known shadowPromotionSlug slug associated with the token. We can use this hash to validate the hit.
-  //Otherwise use the current slug.
-  if (
-    crowdhandlerCookieValue &&
-    crowdhandlerCookieValue.tokens[crowdhandlerCookieValue.tokens.length - 1]
-      .shadowPromotionSlug && crowdhandlerCookieValue.tokens[crowdhandlerCookieValue.tokens.length - 1]
-      .token === token
-  ) {
-    shadowPromotionSlug =
-      crowdhandlerCookieValue.tokens[crowdhandlerCookieValue.tokens.length - 1]
-        .shadowPromotionSlug;
-  }
-
-  if (patternType === "all" && shadowPromotionSlug) {
-    requiredHash = generateSignature(
-      `${api_key}${shadowPromotionSlug}${token}`
-    );
   } else {
-    requiredHash = generateSignature(`${api_key}${slug}${token}`);
-  }
-
-  for (const hash of signature) {
-    if (requiredHash === hash) {
+    if (
+      activeCookie &&
+      activeCookie.touchedSig ===
+        generateSignature(`${api_key}${activeCookie.touched}`) &&
+      minutesSinceTokenCreated(activeCookie.touched) < timeout
+    ) {
       validationResponse.expiration = false;
       validationResponse.success = true;
       return validationResponse;
     }
   }
 
-  validationResponse.expiration = false;
+  //catch all
+  validationResponse.expiration = true;
   validationResponse.success = false;
   return validationResponse;
 };
