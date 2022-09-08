@@ -93,41 +93,41 @@ export async function onClientRequest(request) {
    */
   const integrationConfig = await getConfig(PUBLIC_API_KEY, "cache");
 
+  // Get the query string, parse and process it
+  const unprocessedQueryString = request.query;
+  let queryString;
+
+  //Parse query string
+  if (unprocessedQueryString) {
+    queryString = queryStringParse(unprocessedQueryString);
+  }
+
+  //Destructure special params from query string if they are present
+  let {
+    "ch-code": chCode,
+    "ch-id": chID,
+    "ch-id-signature": chIDSignature,
+    "ch-public-key": chPublicKey,
+    "ch-requested": chRequested,
+  } = queryString || {};
+
+  //Override chCode value if the current one is unusable
+  if (!chCode || chCode === "undefined" || chCode === "null") {
+    chCode = "";
+  }
+
+  // Process the query string
+  queryString = processQueryString(queryString);
+
   //Check the config file to see if we need to process this request any further
   let validationRequired = roomsConfigCheck(
     integrationConfig.result,
     host,
-    path
+    path + queryString
   );
 
   //Validate the signature.
   if (validationRequired.status === true) {
-    // Get the query string, parse and process it
-    const unprocessedQueryString = request.query;
-    let queryString;
-
-    //Parse query string
-    if (unprocessedQueryString) {
-      queryString = queryStringParse(unprocessedQueryString);
-    }
-
-    //Destructure special params from query string if they are present
-    let {
-      "ch-code": chCode,
-      "ch-id": chID,
-      "ch-id-signature": chIDSignature,
-      "ch-public-key": chPublicKey,
-      "ch-requested": chRequested,
-    } = queryString || {};
-
-    //Override chCode value if the current one is unusable
-    if (!chCode || chCode === "undefined" || chCode === "null") {
-      chCode = "";
-    }
-
-    // Process the query string
-    queryString = processQueryString(queryString);
-
     //URL encode the targetURL to be used later in redirects
     let targetURL;
     if (queryString) {
