@@ -100,7 +100,7 @@ const processQueryString = function (unprocessedQueryString) {
 
     queryString = `?${queryString}`;
   } else {
-    queryString = null;
+    queryString = "";
   }
 
   return queryString;
