@@ -34,7 +34,6 @@ export async function onClientRequest(request) {
   const path = request.path;
 
   //Environment Setup
-  //REMOVE B4 BUNDLING
   const API_ENDPOINT = request.getVariable("PMUSER_CROWDHANDLER_API_ENDPOINT");
   let PRIVATE_API_KEY;
   let PUBLIC_API_KEY;
@@ -235,13 +234,23 @@ export async function onClientRequest(request) {
         }
 
         //Set the cookie in our middle man variable that we can access in onClientResponse
-        request.setVariable(
-          "PMUSER_CREDENTIALS",
-          JSON.stringify({
+        let newCookieValue = JSON.stringify({
+          integration: "akamai",
+          tokens: tokenObjects,
+        });
+
+        //We need to manage the bytesize of the cookie. If it's approaching 1024 bytes we're going to remove the oldest signatures from the cookie.
+        if (newCookieValue.length > 900) {
+          tokenObjects[tokenObjects.length - 1].signatures =
+            tokenObjects[tokenObjects.length - 1].signatures.slice(-1);
+          //Override with the sanitised tokenObjects
+          newCookieValue = JSON.stringify({
             integration: "akamai",
             tokens: tokenObjects,
-          })
-        );
+          });
+        }
+
+        request.setVariable("PMUSER_CREDENTIALS", newCookieValue);
 
         //If we're coming in from the lite validator clean up the URL
         if (newSignature) {
