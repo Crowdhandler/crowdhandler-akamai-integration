@@ -1,4 +1,4 @@
 {
-    "edgeworker-version": "2.13",
+    "edgeworker-version": "2.3",
     "description" : "Akamai CrowdHandler EdgeWorker"
 }
