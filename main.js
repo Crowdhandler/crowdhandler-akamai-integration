@@ -54,7 +54,7 @@ export async function onClientRequest(request) {
 
   //Our function to return a response sending requests needing validation to the lite validator
   function goToLiteValidator(targetURL, token, code, expiration) {
-    if (!token) {
+    if (!token || token === "null" || token === "undefined") {
       token = "";
     }
 
