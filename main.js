@@ -53,7 +53,31 @@ export async function onClientRequest(request) {
   HASHED_PRIVATE_API_KEY = generateSignature(PRIVATE_API_KEY);
 
   //Our function to return a response sending requests needing validation to the lite validator
-  function goToLiteValidator(targetURL, token, code, expiration) {
+  function goToLiteValidator(targetURL, token, code) {
+    //get the user agent, lang and ip from the request object
+    let userAgent;
+    let lang;
+    let ip;
+
+    try {
+      userAgent = encodeURIComponent(request.getHeader("User-Agent"));
+    } catch (e) {
+      userAgent = "";
+    }
+
+    try {
+      lang = encodeURIComponent(request.getHeader("Accept-Language"));
+    } catch (e) {
+      lang = "";
+    }
+
+    //https://community.akamai.com/customers/s/question/0D54R00006rEQlqSAG/how-can-i-get-the-clientrequest-ip-in-onclientrequest?language=en_US
+    try {
+      ip = encodeURIComponent(request.getVariable("PMUSER_CLIENT_IP"));
+    } catch (e) {
+      ip = "";
+    }
+
     if (!token || token === "null" || token === "undefined") {
       token = "";
     }
@@ -63,7 +87,7 @@ export async function onClientRequest(request) {
     }
 
     let redirectLocation = {
-      Location: `/ch-api/v1/redirect/requests/${token}?url=${targetURL}&ch-public-key=${PUBLIC_API_KEY}&ch-code=${code}&whitelabel=true`,
+      Location: `/ch-api/v1/redirect/requests/${token}?url=${targetURL}&ch-public-key=${PUBLIC_API_KEY}&ch-code=${code}&whitelabel=true&agent=${userAgent}&lang=${lang}&ip=${ip}`,
     };
     let headers = Object.assign(noCacheHeaders, redirectLocation);
 
