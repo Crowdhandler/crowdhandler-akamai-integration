@@ -14,7 +14,16 @@ const getConfig = async function (api_key, configType) {
       "x-api-key": api_key,
     };
     options.timeout = 1400;
-    return (await httpRequest("/ch-api/v1/rooms", options)).json();
+
+    const response = await httpRequest("/ch-api/v1/rooms", options);
+    const responseGenerated = response.getHeader("x-datestamp");
+
+    //Don't use rooms feeds older than 2 minutes
+    if (Math.floor(new Date().getTime() / 1000.0) - responseGenerated > 120) {
+      return { result: [] };
+    }
+
+    return response.json();
   }
 
   switch (configType.toLowerCase()) {
