@@ -16,6 +16,35 @@ function staticAssetCheck(path) {
   }
 }
 
+const checkoutBusterCheck = function (integrationConfig, host, path) {
+  let staticAsset = staticAssetCheck(path);
+
+  if (staticAsset === true) {
+    return false;
+  }
+
+  let filteredResults;
+  filteredResults = integrationConfig.filter(function (item) {
+    if (item.domain === `https://${host}`) {
+      return item;
+    }
+  });
+
+  for (const item of filteredResults) {
+    try {
+      let checkoutRegex = new RegExp(item.checkout);
+
+      if (checkoutRegex.test(path)) {
+        return true;
+      }
+    } catch (e) {
+      //logger.error(e);
+    }
+  }
+
+  return false;
+};
+
 const roomsConfigCheck = function (integrationConfig, host, path) {
   let staticAsset = staticAssetCheck(path);
 
@@ -74,4 +103,4 @@ const roomsConfigCheck = function (integrationConfig, host, path) {
   return roomMeta;
 };
 
-export { roomsConfigCheck };
+export { checkoutBusterCheck, roomsConfigCheck };
