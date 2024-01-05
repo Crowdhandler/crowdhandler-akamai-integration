@@ -11,17 +11,26 @@ import {
 
 import { generateTokenObject } from "./helpers/cookie_generator.js";
 import { getConfig } from "./helpers/config_get.js";
-import { roomsConfigCheck } from "./helpers/rooms_config.js";
+import {
+  checkoutBusterCheck,
+  roomsConfigCheck,
+} from "./helpers/rooms_config.js";
 import { signatureValidate } from "./helpers/signature_validation.js";
 
 export function onClientResponse(request, response) {
   //Pull the cookie object from the middleman variable that we set in the onClientRequest function
   let cookieValue = request.getVariable("PMUSER_CREDENTIALS");
+  let expires = request.getVariable("PMUSER_BUST");
   if (cookieValue) {
     let cookie = new SetCookie();
     cookie.name = "crowdhandler";
     cookie.path = "/";
     cookie.value = encodeURIComponent(cookieValue);
+
+    if (expires === "true") {
+      cookie.expires = new Date(0);
+    }
+
     response.addHeader("Set-Cookie", cookie.toHeader());
   }
 }
@@ -142,6 +151,13 @@ export async function onClientRequest(request) {
   // Process the query string
   queryString = processQueryString(queryString);
 
+  //Do we need to bust the session on this request?
+  let bustCheckout = checkoutBusterCheck(
+    integrationConfig.result,
+    host,
+    path + queryString
+  );
+
   //Check the config file to see if we need to process this request any further
   let validationRequired = roomsConfigCheck(
     integrationConfig.result,
@@ -150,7 +166,7 @@ export async function onClientRequest(request) {
   );
 
   //Validate the signature.
-  if (validationRequired.status === true) {
+  if (validationRequired.status === true && bustCheckout === false) {
     //URL encode the targetURL to be used later in redirects
     let targetURL;
     if (queryString) {
@@ -284,5 +300,9 @@ export async function onClientRequest(request) {
     } else {
       goToLiteValidator(targetURL, token, chCode, true);
     }
+  } else if (bustCheckout === true) {
+    //If we need to bust the checkout, we need to clear the cookie
+    request.setVariable("PMUSER_CREDENTIALS", JSON.stringify({}));
+    request.setVariable("PMUSER_BUST", bustCheckout);
   }
 }
