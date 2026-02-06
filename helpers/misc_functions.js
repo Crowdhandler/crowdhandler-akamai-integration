@@ -12,7 +12,6 @@ const creativeAssetExtensions = [
   ".bz",
   ".bz2",
   ".cgm",
-  ".csv",
   ".css",
   ".csv",
   ".doc",
@@ -79,7 +78,7 @@ const noCacheHeaders = {
   Pragma: "no-cache",
 };
 
-const processQueryString = function (unprocessedQueryString) {
+function processQueryString(unprocessedQueryString) {
   let queryString = unprocessedQueryString;
 
   //Remove special params from the queryString object now that we don't need them anymore
@@ -94,34 +93,44 @@ const processQueryString = function (unprocessedQueryString) {
 
   //Convert to usable querystring format
   if (queryString && Object.keys(queryString).length !== 0) {
-    queryString = Object.keys(queryString)
-      .map((key) => key + "=" + queryString[key])
-      .join("&");
-
-    queryString = `?${queryString}`;
+    let pairs = [];
+    for (const key of Object.keys(queryString)) {
+      const values = Array.isArray(queryString[key]) ? queryString[key] : [queryString[key]];
+      for (const val of values) {
+        pairs.push(encodeURIComponent(key) + "=" + encodeURIComponent(val));
+      }
+    }
+    queryString = `?${pairs.join("&")}`;
   } else {
     queryString = "";
   }
 
   return queryString;
-};
+}
 
-const queryStringParse = function (queryString) {
+function queryStringParse(queryString) {
   function paramsToObject(entries) {
     const result = {};
     for (const [key, value] of entries) {
-      //each 'entry' is a [key, value] tupple
-      result[key] = value;
+      if (result.hasOwnProperty(key)) {
+        if (Array.isArray(result[key])) {
+          result[key].push(value);
+        } else {
+          result[key] = [result[key], value];
+        }
+      } else {
+        result[key] = value;
+      }
     }
     return result;
   }
 
   var urlParams = new URLSearchParams(queryString);
-  const entries = urlParams.entries(); //returns an iterator of decoded [key,value] tuples
+  const entries = urlParams.entries();
   const params = paramsToObject(entries);
 
   return params;
-};
+}
 
 //Working extraction method. Left in code for sake of posterity. Not currently used.
 /*const extractTokenDatestamp = function (token) {
@@ -139,39 +148,18 @@ const queryStringParse = function (queryString) {
   return Date.UTC(`20${year}`, month, day, hour, minute, second);
 };*/
 
-const generateSignature = function (input) {
-  const hash = sha256(input);
-  return hash;
-};
+function generateSignature(input) {
+  return sha256(input);
+}
 
-const sourceTokenandSignature = function (
-  chID,
-  chIDSignature,
-  crowdhandlerCookieValue
-) {
-  let token;
-  let signature;
+function sourceTokenandSignature(chID, chIDSignature, crowdhandlerCookieValue) {
+  const lastToken = crowdhandlerCookieValue?.tokens?.at(-1);
 
-  //If the chID is not present, use the crowdhandlerCookieValue
-  if (chID) {
-    token = chID;
-  } else if (crowdhandlerCookieValue) {
-    token =
-      crowdhandlerCookieValue.tokens[crowdhandlerCookieValue.tokens.length - 1]
-        .token;
-  }
-
-  //If the chIDSignature is not present, use the crowdhandlerCookieValue
-  if (chIDSignature) {
-    signature = chIDSignature;
-  } else if (crowdhandlerCookieValue) {
-    signature =
-      crowdhandlerCookieValue.tokens[crowdhandlerCookieValue.tokens.length - 1]
-        .signatures;
-  }
+  const token = chID || lastToken?.token;
+  const signature = chIDSignature || lastToken?.signatures;
 
   return [token, signature];
-};
+}
 
 export {
   creativeAssetExtensions,

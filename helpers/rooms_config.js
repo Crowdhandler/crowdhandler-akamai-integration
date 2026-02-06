@@ -1,11 +1,11 @@
-//import { logger } from "log";
+import { logger } from "log";
 import { creativeAssetExtensions } from "./misc_functions.js";
 
 function staticAssetCheck(path) {
   //Handle static file extensions
-  let fileExtension = path.match(/(.*)(\..*)/);
+  let fileExtension = path.match(/(\.[^.]+)$/);
   if (fileExtension !== null) {
-    fileExtension = fileExtension[2];
+    fileExtension = fileExtension[1];
   }
 
   if (creativeAssetExtensions.indexOf(fileExtension) !== -1) {
@@ -16,21 +16,20 @@ function staticAssetCheck(path) {
   }
 }
 
-const checkoutBusterCheck = function (integrationConfig, host, path) {
-  let staticAsset = staticAssetCheck(path);
-
-  if (staticAsset === true) {
+function checkoutBusterCheck(integrationConfig, host, path) {
+  if (staticAssetCheck(path)) {
     return false;
   }
 
-  let filteredResults;
-  filteredResults = integrationConfig.filter(function (item) {
-    if (item.domain === `https://${host}`) {
-      return item;
-    }
-  });
+  const domainUrl = `https://${host}`;
+  const filteredResults = integrationConfig.filter(
+    (item) => item.domain === domainUrl
+  );
 
   for (const item of filteredResults) {
+    if (!item.checkout) {
+      continue;
+    }
     try {
       let checkoutRegex = new RegExp(item.checkout);
 
@@ -38,41 +37,46 @@ const checkoutBusterCheck = function (integrationConfig, host, path) {
         return true;
       }
     } catch (e) {
-      //logger.error(e);
+      logger.error(`[CH] Invalid checkout regex: ${item.checkout}`);
     }
   }
 
   return false;
-};
+}
 
-const roomsConfigCheck = function (integrationConfig, host, path) {
-  let staticAsset = staticAssetCheck(path);
-
-  let filteredResults;
-  filteredResults = integrationConfig.filter(function (item) {
-    if (item.domain === `https://${host}`) {
-      return item;
-    }
-  });
+function roomsConfigCheck(integrationConfig, host, path) {
+  const staticAsset = staticAssetCheck(path);
+  const domainUrl = `https://${host}`;
+  const filteredResults = integrationConfig.filter(
+    (item) => item.domain === domainUrl
+  );
 
   function patternCheck(item) {
     switch (item.patternType) {
       case "regex":
-        let regex = new RegExp(item.urlPattern);
-        return regex.test(path);
-        break;
+        if (!item.urlPattern) {
+          return false;
+        }
+        try {
+          let regex = new RegExp(item.urlPattern);
+          return regex.test(path);
+        } catch (e) {
+          logger.error(`[CH] Invalid room regex: ${item.urlPattern}`);
+          return false;
+        }
 
       case "contains":
+        if (!item.urlPattern) {
+          return false;
+        }
         let contains = item.urlPattern;
         return path.includes(contains);
-        break;
 
       case "all":
         return true;
-        break;
 
       default:
-        break;
+        return false;
     }
   }
 
@@ -85,22 +89,20 @@ const roomsConfigCheck = function (integrationConfig, host, path) {
     timeout: null,
   };
 
+  //Find first matching room - use slug as guard to not override with weaker matches
   for (const item of filteredResults) {
-    if (patternCheck(item) === true && staticAsset !== true) {
-      //Populate the roomMeta object.
-      //Use slug as a guard to make sure if we've already found a match we don't override it with weaker ones as we loop.
-      if (roomMeta.slug === null) {
-        roomMeta.domain = item.domain;
-        roomMeta.patternType = item.patternType;
-        roomMeta.queueActivatesOn = item.queueActivatesOn;
-        roomMeta.slug = item.slug;
-        roomMeta.status = true;
-        roomMeta.timeout = item.timeout;
-      }
+    if (patternCheck(item) && !staticAsset && roomMeta.slug === null) {
+      roomMeta.domain = item.domain;
+      roomMeta.patternType = item.patternType;
+      roomMeta.queueActivatesOn = item.queueActivatesOn;
+      roomMeta.slug = item.slug;
+      roomMeta.status = true;
+      roomMeta.timeout = item.timeout;
+      break;
     }
   }
 
   return roomMeta;
-};
+}
 
 export { checkoutBusterCheck, roomsConfigCheck };

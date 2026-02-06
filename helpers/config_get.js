@@ -1,6 +1,7 @@
 import { httpRequest } from "http-request";
+import { logger } from "log";
 
-const getConfig = async function (api_key, configType) {
+async function getConfig(api_key, configType) {
   function getStaticConfig() {
     //UNCOMMENT THIS LINE AND PASTE YOUR CONFIG OBJECT HERE IF YOU ARE INTEGRATING USING A STATIC CONFIG FILE
     //*const config = {}
@@ -8,22 +9,41 @@ const getConfig = async function (api_key, configType) {
   }
 
   async function getConfigFromCache() {
-    let options = {};
-    options.method = "GET";
-    options.headers = {
-      "x-api-key": api_key,
+    const options = {
+      method: "GET",
+      headers: {
+        "x-api-key": api_key,
+        "x-request-source": "akamai",
+      },
+      timeout: 1400,
     };
-    options.timeout = 1400;
 
-    const response = await httpRequest("/ch-api/v1/rooms", options);
-    const responseGenerated = response.getHeader("x-datestamp");
+    try {
+      const response = await httpRequest("/ch-api/v1/rooms", options);
 
-    //Don't use rooms feeds older than 2 minutes
-    if (Math.floor(new Date().getTime() / 1000.0) - responseGenerated > 120) {
+      if (response.status >= 400 && response.status < 500) {
+        logger.error(`[CH] Config fetch 4xx (${response.status}) - check API key`);
+        return { result: [] };
+      }
+
+      if (response.status >= 500) {
+        logger.error(`[CH] Config fetch 5xx (${response.status})`);
+        return { result: [] };
+      }
+
+      const responseGenerated = response.getHeader("x-datestamp");
+
+      //Don't use rooms feeds older than 2 minutes
+      if (Math.floor(new Date().getTime() / 1000.0) - responseGenerated > 120) {
+        logger.log("[CH] Config feed stale (>2 min) - using empty config");
+        return { result: [] };
+      }
+
+      return await response.json();
+    } catch (e) {
+      logger.error(`[CH] Config fetch failed - network/timeout: ${e.message || e}`);
       return { result: [] };
     }
-
-    return response.json();
   }
 
   switch (configType.toLowerCase()) {
@@ -31,9 +51,10 @@ const getConfig = async function (api_key, configType) {
       return getStaticConfig();
     case "cache":
       return getConfigFromCache();
-    //Coming soon
     case "edgekv":
+      //Coming soon
+      break;
   }
-};
+}
 
 export { getConfig };

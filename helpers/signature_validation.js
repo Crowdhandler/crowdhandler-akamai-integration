@@ -1,7 +1,7 @@
 import { generateSignature } from "./misc_functions.js";
 //import { logger } from "log";
 
-const signatureValidate = function (
+function signatureValidate(
   chRequested,
   api_key,
   token,
@@ -11,7 +11,7 @@ const signatureValidate = function (
   crowdhandlerCookieValue,
   timeout
 ) {
-  let validationResponse = {
+  const validationResponse = {
     expiration: null,
     success: null,
     validatedSignature: null,
@@ -22,12 +22,8 @@ const signatureValidate = function (
     signature = signature.split();
   }
 
-  let hashCandidates = [];
-  let activeCookie;
-  if (crowdhandlerCookieValue) {
-    activeCookie =
-      crowdhandlerCookieValue.tokens[crowdhandlerCookieValue.tokens.length - 1];
-  }
+  const hashCandidates = [];
+  const activeCookie = crowdhandlerCookieValue?.tokens?.at(-1);
   let matchedSignature;
 
   if (chRequested) {
@@ -35,34 +31,25 @@ const signatureValidate = function (
       `${api_key}${slug}${queueActivatesOn}${token}${chRequested}`
     );
   } else {
-    //If we have a signature that is active, we can use that to generate the hash
-    let generatedHistory = [];
-
-    //Collect the historically generated timestamps
-    //Unshift to get most recent sig objects first for optimisation purposes
-    for (const item of signature) {
-      generatedHistory.unshift(item.gen);
-    }
-
-    //Generate possible hash candidates
-    for (const item of generatedHistory) {
+    //Collect historically generated timestamps (most recent first for optimisation)
+    //and generate possible hash candidates
+    for (let i = signature.length - 1; i >= 0; i--) {
       hashCandidates.push(
-        `${api_key}${slug}${queueActivatesOn}${token}${item}`
+        `${api_key}${slug}${queueActivatesOn}${token}${signature[i].gen}`
       );
     }
   }
 
   //If there's no signature match it's a failure and we shouldn't proceed any further
   if (chRequested) {
-    let requiredHash = generateSignature(hashCandidates[0]);
-
-    if (signature.some((item) => item === requiredHash) === true) {
+    const requiredHash = generateSignature(hashCandidates[0]);
+    if (signature.some((item) => item === requiredHash)) {
       matchedSignature = requiredHash;
     }
   } else {
     for (const hash of hashCandidates) {
-      let requiredHash = generateSignature(hash);
-      if (signature.some((item) => item.sig === requiredHash) === true) {
+      const requiredHash = generateSignature(hash);
+      if (signature.some((item) => item.sig === requiredHash)) {
         matchedSignature = requiredHash;
         break;
       }
@@ -111,6 +98,6 @@ const signatureValidate = function (
   validationResponse.expiration = true;
   validationResponse.success = false;
   return validationResponse;
-};
+}
 
 export { signatureValidate };

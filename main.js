@@ -1,5 +1,5 @@
 import { Cookies, SetCookie } from "cookies";
-//import { logger } from "log";
+import { logger } from "log";
 
 import {
   generateSignature,
@@ -18,24 +18,30 @@ import {
 import { signatureValidate } from "./helpers/signature_validation.js";
 
 export function onClientResponse(request, response) {
-  //Pull the cookie object from the middleman variable that we set in the onClientRequest function
-  let cookieValue = request.getVariable("PMUSER_CREDENTIALS");
-  let expires = request.getVariable("PMUSER_BUST");
-  if (cookieValue) {
-    let cookie = new SetCookie();
-    cookie.name = "crowdhandler";
-    cookie.path = "/";
-    cookie.value = encodeURIComponent(cookieValue);
+  try {
+    //Pull the cookie object from the middleman variable that we set in the onClientRequest function
+    let cookieValue = request.getVariable("PMUSER_CREDENTIALS");
+    let expires = request.getVariable("PMUSER_BUST");
+    if (cookieValue) {
+      let cookie = new SetCookie();
+      cookie.name = "crowdhandler";
+      cookie.path = "/";
+      cookie.value = encodeURIComponent(cookieValue);
 
-    if (expires === "true") {
-      cookie.expires = new Date(0);
+      if (expires === "true") {
+        cookie.expires = new Date(0);
+      }
+
+      response.addHeader("Set-Cookie", cookie.toHeader());
     }
-
-    response.addHeader("Set-Cookie", cookie.toHeader());
+  } catch (e) {
+    logger.error(`[CH] onClientResponse error: ${e.message || e}`);
+    // Response passes through without cookie — graceful degradation
   }
 }
 
 export async function onClientRequest(request) {
+  try {
   //UTC
   const requestStartTime = new Date().getTime();
   //Domain
@@ -68,24 +74,23 @@ export async function onClientRequest(request) {
     let lang;
     let ip;
 
-    try {
-      userAgent = encodeURIComponent(request.getHeader("User-Agent"));
-    } catch (e) {
-      userAgent = "";
-    }
+    const ua = request.getHeader("User-Agent");
+    userAgent = ua ? encodeURIComponent(ua) : null;
 
-    try {
-      lang = encodeURIComponent(request.getHeader("Accept-Language"));
-    } catch (e) {
-      lang = "";
-    }
+    const acceptLang = request.getHeader("Accept-Language");
+    lang = acceptLang ? encodeURIComponent(acceptLang) : null;
 
-    //https://community.akamai.com/customers/s/question/0D54R00006rEQlqSAG/how-can-i-get-the-clientrequest-ip-in-onclientrequest?language=en_US
+    /**
+     * https://community.akamai.com/customers/s/question/0D54R00006rEQlqSAG/how-can-i-get-the-clientrequest-ip-in-onclientrequest?language=en_US
+     * Deprecated in favour of request.clientIp which became available 10/11/2024
     try {
       ip = encodeURIComponent(request.getVariable("PMUSER_CLIENT_IP"));
     } catch (e) {
       ip = "";
     }
+    */
+
+    ip = request.clientIp ? encodeURIComponent(request.clientIp) : null;
 
     if (!token || token === "null" || token === "undefined") {
       token = "";
@@ -153,14 +158,14 @@ export async function onClientRequest(request) {
 
   //Do we need to bust the session on this request?
   let bustCheckout = checkoutBusterCheck(
-    integrationConfig.result,
+    integrationConfig?.result || [],
     host,
     path + queryString
   );
 
   //Check the config file to see if we need to process this request any further
   let validationRequired = roomsConfigCheck(
-    integrationConfig.result,
+    integrationConfig?.result || [],
     host,
     path + queryString
   );
@@ -179,8 +184,13 @@ export async function onClientRequest(request) {
     let cookies = new Cookies(request.getHeader("Cookie"));
     let crowdhandlerCookieValue = cookies.get("crowdhandler");
     if (crowdhandlerCookieValue) {
-      crowdhandlerCookieValue = decodeURIComponent(crowdhandlerCookieValue);
-      crowdhandlerCookieValue = JSON.parse(crowdhandlerCookieValue);
+      try {
+        crowdhandlerCookieValue = decodeURIComponent(crowdhandlerCookieValue);
+        crowdhandlerCookieValue = JSON.parse(crowdhandlerCookieValue);
+      } catch (e) {
+        logger.error('Malformed crowdhandler cookie');
+        crowdhandlerCookieValue = null;
+      }
     }
 
     //Determine where to source the token and signature from
@@ -205,6 +215,7 @@ export async function onClientRequest(request) {
       );
 
       if (validationResult.success !== true) {
+        logger.log(`[CH] ${host}${path} | validate | token:${token || 'none'}`);
         goToLiteValidator(
           targetURL,
           token,
@@ -223,7 +234,7 @@ export async function onClientRequest(request) {
         );
 
         //Push tokens already in the cookie
-        if (crowdhandlerCookieValue) {
+        if (crowdhandlerCookieValue?.tokens) {
           for (const item of crowdhandlerCookieValue.tokens) {
             tokenObjects.push(item);
           }
@@ -239,7 +250,7 @@ export async function onClientRequest(request) {
         } else {
           freshToken = false;
           //We want to work with the most recent array of signatures
-          for (const item of tokenObjects[tokenObjects.length - 1].signatures) {
+          for (const item of tokenObjects[tokenObjects.length - 1].signatures || []) {
             signatures.push(item);
           }
         }
@@ -294,15 +305,23 @@ export async function onClientRequest(request) {
 
         //If we're coming in from the lite validator clean up the URL
         if (newSignature) {
+          logger.log(`[CH] ${host}${path} | promoted | token:${token}`);
           generateCleanURL(queryString);
+        } else {
+          logger.log(`[CH] ${host}${path} | allow | token:${token}`);
         }
       }
     } else {
+      logger.log(`[CH] ${host}${path} | validate | token:${token || 'none'}`);
       goToLiteValidator(targetURL, token, chCode, true);
     }
   } else if (bustCheckout === true) {
     //If we need to bust the checkout, we need to clear the cookie
     request.setVariable("PMUSER_CREDENTIALS", JSON.stringify({}));
     request.setVariable("PMUSER_BUST", bustCheckout);
+  }
+  } catch (e) {
+    logger.error(`[CH] onClientRequest error: ${e.message || e}`);
+    // Return without respondWith() — Akamai passes to origin (fail open)
   }
 }
