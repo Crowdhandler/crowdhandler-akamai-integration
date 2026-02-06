@@ -1,9 +1,10 @@
 {
   "name": "crowdhandler-akamai-integration",
-  "version": "2.6.0",
+  "version": "2.27.0",
   "description": "",
   "main": "main.js",
   "scripts": {
+    "prebuild": "node -e \"const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json'));const v=p.version.split('.');v[1]=+v[1]+1;v[2]=0;p.version=v.join('.');fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\\n');const b=JSON.parse(fs.readFileSync('bundle.json'));b['edgeworker-version']=v[0]+'.'+v[1];fs.writeFileSync('bundle.json',JSON.stringify(b,null,4)+'\\n');console.log('Bumped to '+p.version);\"",
     "build": "rollup -c && cd dist/work && tar -czvf ../crowdhandler-akamai.tgz *",
     "build-dev": "rollup -c && cd dist/work && tar -czvf ../crowdhandler-akamai.tgz * && akamai sandbox update-edgeworker 7825 ../crowdhandler-akamai.tgz",
     "sandbox-create": "akamai sandbox create --hostname www.example.com --name sandbox_for_www_example_com",
